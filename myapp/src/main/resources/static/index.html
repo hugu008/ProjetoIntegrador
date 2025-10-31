@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Marmitas – Demo simples</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; background:#f7f7f7; }
+    header { background:#111; color:#fff; padding:16px; }
+    main { padding:16px; max-width: 1100px; margin: 0 auto; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .card { background:#fff; border:1px solid #e5e5e5; border-radius:12px; padding:16px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+    h2 { margin: 0 0 12px; font-size: 18px; }
+    h3 { margin: 16px 0 8px; font-size: 16px; }
+    .list { display:grid; gap:8px; }
+    .item { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px; border:1px solid #eee; border-radius:8px; background:#fafafa; }
+    .item .meta { display:flex; align-items:center; gap:10px; }
+    .item img { width:48px; height:48px; object-fit:cover; border-radius:8px; border:1px solid #ddd; background:#fff; }
+    .actions { display:flex; gap:6px; }
+    .muted { color:#666; font-size:13px; }
+    .pill { display:inline-block; padding:2px 8px; border:1px solid #ddd; border-radius:999px; margin-right:6px; font-size:12px; }
+    .hr { height:1px; background:#eee; margin:12px 0; }
+    .error { background:#ffecec; color:#a40000; padding:8px; border-radius:8px; border:1px solid #ffcece; }
+    .ok { background:#ecfff0; color:#005c26; padding:8px; border-radius:8px; border:1px solid #c9ffd9; }
+    @media (max-width: 900px) { .row { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>Marmitas · Demo</strong>
+  </header>
+  <main>
+    <div class="row">
+      <section class="card">
+        <h2>Cardápio de hoje</h2>
+        <div id="msg" class="muted"></div>
+        <div class="hr"></div>
+        <div id="cardapio"></div>
+      </section>
+
+      <section class="card">
+        <h2>Seu pedido</h2>
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px; flex-wrap: wrap;">
+          <label>Cliente ID:</label>
+          <input id="clienteId" type="number" value="1" min="1" />
+          <button class="primary" onclick="criarPadrao()">Marmita padrão do dia</button>
+          <button onclick="criarLivre()">Pedido livre</button>
+        </div>
+        <div class="muted" id="pedidoInfo">Nenhum pedido criado ainda.</div>
+        <div class="hr"></div>
+        <div id="pedidoItens" class="list"></div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    // ==== CONFIG: ajuste aqui conforme seu application.properties ====
+    // Se NÃO tem context-path: ''
+    // Se tem server.servlet.context-path=/marmitas: '/marmitas'
+    const PREFIX = '/marmitas'; // <-- troque para '/marmitas' se for o seu caso
+    const PLACEHOLDER_DIA = 'QUARTA'; // usado como "modelo" no domingo
+
+    const api = {
+      cardapioHoje: `${PREFIX}/cardapio/hoje`,
+      cardapioDia: (dia) => `${PREFIX}/cardapio/dia/${encodeURIComponent(dia)}`,
+      criarPadrao: `${PREFIX}/pedidos/padrao`,
+      criarLivre: (clienteId) => `${PREFIX}/pedidos/livre?clienteId=${encodeURIComponent(clienteId)}`,
+      addItem: (pedidoId, nome, qtd=1) => `${PREFIX}/pedidos/${pedidoId}/itens?itemNome=${encodeURIComponent(nome)}&quantidade=${qtd}`,
+      removerItem: (pedidoId, nome) => `${PREFIX}/pedidos/${pedidoId}/itens?itemNome=${encodeURIComponent(nome)}`,
+      getPedido: (pedidoId) => `${PREFIX}/pedidos/${pedidoId}`,
+    };
+
+    let pedidoAtual = null;
+
+    async function fetchJSON(url, opts={}) {
+      const res = await fetch(url, opts);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || (res.status + ' ' + res.statusText));
+      }
+      return res.json();
+    }
+
+    function byCategoria(items, nome) {
+      return items.filter(i => (i.categoria || '').toLowerCase() === nome.toLowerCase());
+    }
+
+    function renderCardapio(items) {
+      const el = document.getElementById('cardapio');
+      const bases = byCategoria(items, 'Base');
+      const misturas = byCategoria(items, 'Mistura');
+      const acomp = byCategoria(items, 'Acompanhamento');
+      const saladas = byCategoria(items, 'Salada');
+
+      el.innerHTML = '';
+      const mkSection = (titulo, arr) => {
+        const sec = document.createElement('div');
+        const h3 = document.createElement('h3');
+        h3.textContent = titulo;
+        sec.appendChild(h3);
+        const list = document.createElement('div');
+        list.className = 'list';
+        if (!arr || arr.length === 0) {
+          const empty = document.createElement('div');
+          empty.className = 'muted';
+          empty.textContent = 'Nenhum item.';
+          list.appendChild(empty);
+        } else {
+          arr.forEach(it => list.appendChild(renderItem(it)));
+        }
+        sec.appendChild(list);
+        el.appendChild(sec);
+      };
+
+      mkSection('Bases', bases);
+      mkSection('Misturas', misturas);
+      mkSection('Acompanhamentos', acomp);
+      mkSection('Saladas', saladas);
+    }
+
+    function renderItem(it) {
+      const div = document.createElement('div');
+      div.className = 'item';
+
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      const img = document.createElement('img');
+      img.src = it.imagemUrl || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"/>';
+      img.alt = it.nome;
+      const title = document.createElement('div');
+      title.innerHTML = `<strong>${it.nome}</strong><div class="muted">${it.descricao || ''}</div>`;
+      meta.appendChild(img);
+      meta.appendChild(title);
+
+      const actions = document.createElement('div');
+      actions.className = 'actions';
+      const addBtn = document.createElement('button');
+      addBtn.textContent = 'Adicionar';
+      addBtn.onclick = async () => {
+        if (!pedidoAtual) return showMsg('Crie um pedido primeiro (padrão ou livre).', true);
+        try {
+          await fetchJSON(api.addItem(pedidoAtual.id, it.nome), { method: 'POST' });
+          await carregarPedido(pedidoAtual.id);
+          showMsg('Item adicionado.');
+        } catch (e) { showMsg(parseErrorMsg(e.message), true); }
+      };
+
+      const rmBtn = document.createElement('button');
+      rmBtn.textContent = 'Remover';
+      rmBtn.onclick = async () => {
+        if (!pedidoAtual) return showMsg('Crie um pedido primeiro.', true);
+        try {
+          await fetchJSON(api.removerItem(pedidoAtual.id, it.nome), { method: 'DELETE' });
+          await carregarPedido(pedidoAtual.id);
+          showMsg('Item removido (primeira ocorrência).');
+        } catch (e) { showMsg(parseErrorMsg(e.message), true); }
+      };
+
+      actions.appendChild(addBtn);
+      actions.appendChild(rmBtn);
+
+      div.appendChild(meta);
+      div.appendChild(actions);
+      return div;
+    }
+
+    function parseErrorMsg(raw) {
+      try { const obj = JSON.parse(raw); return obj.message || raw; }
+      catch { return raw; }
+    }
+
+    function showMsg(msg, isError=false) {
+      const el = document.getElementById('msg');
+      el.className = isError ? 'error' : 'ok';
+      el.textContent = msg;
+      setTimeout(() => { el.className='muted'; el.textContent=''; }, 3200);
+    }
+
+    async function criarPadrao() {
+      const clienteId = Number(document.getElementById('clienteId').value || '1');
+      try {
+        const pedido = await fetchJSON(api.criarPadrao, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clienteId })
+        });
+        pedidoAtual = pedido;
+        await carregarPedido(pedido.id);
+        showMsg('Marmita padrão criada!');
+      } catch (e) { showMsg(parseErrorMsg(e.message), true); }
+    }
+
+    async function criarLivre() {
+      const clienteId = Number(document.getElementById('clienteId').value || '1');
+      try {
+        const pedido = await fetchJSON(api.criarLivre(clienteId), { method: 'POST' });
+        pedidoAtual = pedido;
+        await carregarPedido(pedido.id);
+        showMsg('Pedido livre criado!');
+      } catch (e) { showMsg(parseErrorMsg(e.message), true); }
+    }
+
+    async function carregarPedido(id) {
+      const data = await fetchJSON(api.getPedido(id));
+      pedidoAtual = data;
+      const info = document.getElementById('pedidoInfo');
+      info.innerHTML = `#${data.id} · <span class="pill">${data.tipo}</span> <span class="pill">${data.status}</span>`;
+      const lista = document.getElementById('pedidoItens');
+      lista.innerHTML = '';
+      if (!data.itens || data.itens.length === 0) {
+        lista.innerHTML = '<div class="muted">Sem itens ainda. Use os botões do cardápio para adicionar.</div>';
+        return;
+      }
+      data.itens.forEach(pi => {
+        const row = document.createElement('div');
+        row.className = 'item';
+        row.innerHTML = `<div><strong>${pi.item.nome}</strong> <span class="muted">(${pi.item.categoria.nome})</span></div>
+                         <div class="muted">qtd=${pi.quantidade}</div>`;
+        lista.appendChild(row);
+      });
+    }
+
+    function isDomingo() { return new Date().getDay() === 0; }
+
+    async function carregarCardapio() {
+      try {
+        const itemsHoje = await fetchJSON(api.cardapioHoje);
+        if (isDomingo() && (!itemsHoje || itemsHoje.length === 0)) {
+          const itemsRef = await fetchJSON(api.cardapioDia(PLACEHOLDER_DIA));
+          renderCardapio(itemsRef);
+          showMsg(`Hoje é domingo. Mostrando cardápio de ${PLACEHOLDER_DIA} como placeholder.`);
+        } else {
+          renderCardapio(itemsHoje);
+        }
+      } catch (e) {
+        document.getElementById('cardapio').innerHTML =
+          '<div class="error">Falha ao carregar cardápio: ' + parseErrorMsg(e.message) + '</div>';
+      }
+    }
+
+    // Boot
+    (async () => { await carregarCardapio(); })();
+  </script>
+</body>
+</html>
