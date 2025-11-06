@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Marmitaria – Painel MVP</title>
+  <style>
+    :root { --bg:#0f172a; --card:#111827; --muted:#94a3b8; --txt:#e5e7eb; --acc:#22d3ee; --ok:#22c55e; --warn:#f59e0b; --err:#ef4444; }
+    *{box-sizing:border-box} body{margin:0;background:linear-gradient(180deg,#0b1220,#0a0f1c);font:14px/1.4 system-ui,Segoe UI,Roboto,Inter,sans-serif;color:var(--txt)}
+    header{position:sticky;top:0;background:#0b1220aa;backdrop-filter:blur(8px);border-bottom:1px solid #1f2937;padding:12px 20px;display:flex;gap:16px;align-items:center}
+    header h1{font-size:18px;margin:0 8px 0 0;letter-spacing:.5px}
+    .pill{padding:6px 10px;border:1px solid #1f2937;border-radius:999px;color:var(--muted)}
+    .container{max-width:1200px;margin:22px auto;padding:0 20px;}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+    .card{background:var(--card);border:1px solid #1f2937;border-radius:16px;padding:16px;box-shadow:0 10px 20px rgb(0 0 0 / .25)}
+    .card h2{margin:0 0 12px;font-size:16px}
+    label{display:block;margin:8px 0 4px;color:var(--muted)} input,select,textarea{width:100%;background:#0b1220;border:1px solid #1f2937;border-radius:10px;padding:10px;color:var(--txt)}
+    textarea{min-height:72px}
+    button{cursor:pointer;background:#0b1220;border:1px solid #334155;color:var(--txt);padding:10px 14px;border-radius:10px}
+    button.primary{background:linear-gradient(90deg,#22d3ee,#06b6d4);color:#001018;border:none}
+    button.ghost{background:transparent;border:1px dashed #334155}
+    .row{display:flex;gap:10px;align-items:center}
+    .row > *{flex:1}
+    .table{width:100%;border-collapse:collapse;margin-top:10px}
+    .table th,.table td{border-bottom:1px solid #1f2937;padding:8px;text-align:left}
+    .muted{color:var(--muted)}
+    .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;border:1px solid #334155;color:var(--muted)}
+    .ok{color:var(--ok)} .warn{color:var(--warn)} .err{color:var(--err)}
+    .tabs{display:flex;gap:8px;margin:10px 0 18px}
+    .tabs button{border-radius:999px;padding:8px 12px;border:1px solid #334155;background:#0b1220}
+    .tabs button.active{background:#12203a;border-color:#3b82f6}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .hint{font-size:12px;color:var(--muted)}
+    .kv{display:grid;grid-template-columns:180px 1fr;gap:6px}
+    .footer{margin:24px 0 40px;color:var(--muted);text-align:center}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-size:12px}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Marmitaria – Painel</h1>
+  </header>
+
+  <div class="container">
+    <div class="card">
+      <div class="row">
+        <div>
+          <label>Data de referência (YYYY-MM-DD)</label>
+          <input id="refDate" type="date" />
+          <div class="hint">Usada para disponibilidade/orçamento/pedido.</div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="primary" onclick="healthCheck()">Testar conexão</button>
+        <span id="health" class="muted"></span>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="active" data-tab="cardapio" onclick="switchTab(this)">Cardápio</button>
+      <button data-tab="clientes" onclick="switchTab(this)">Clientes</button>
+      <button data-tab="pedidos" onclick="switchTab(this)">Pedidos</button>
+      <button data-tab="pagamentos" onclick="switchTab(this)">Pagamentos</button>
+    </div>
+
+    <!-- CARDÁPIO -->
+    <section id="tab-cardapio" class="grid">
+      <div class="card">
+        <h2>Novo item de cardápio</h2>
+        <label>Nome</label><input id="itNome" />
+        <label>Descrição</label><textarea id="itDesc"></textarea>
+        <div class="row">
+          <div>
+            <label>Tipo</label>
+            <select id="itTipo">
+              <option>BASE</option>
+              <option>MISTURA</option>
+              <option>ACOMPANHAMENTO</option>
+              <option>BEBIDA</option>
+              <option>SOBREMESA</option>
+            </select>
+          </div>
+          <div>
+            <label>Preço</label><input id="itPreco" type="number" step="0.01" />
+          </div>
+        </div>
+        <div class="row">
+          <div><label>Ativo?</label>
+            <select id="itAtivo"><option value="true">Sim</option><option value="false">Não</option></select>
+          </div>
+          <div>
+            <label>Ordem (exibição)</label><input id="itOrdem" type="number" />
+          </div>
+        </div>
+        <label>Imagem URL</label><input id="itImg" />
+        <div class="actions">
+          <button class="primary" onclick="criarItem()">Criar item</button>
+          <button class="ghost" onclick="listarCardapio()">Atualizar lista</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Cardápio público</h2>
+        <div class="actions">
+          <button onclick="listarCardapio()">Carregar</button>
+        </div>
+        <table class="table" id="tblCardapio">
+          <thead>
+            <tr><th>ID</th><th>Nome</th><th>Tipo</th><th>Preço</th><th>Disponível</th><th>Ações</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2>Disponibilidade por data</h2>
+        <div class="row">
+          <div><label>ID do item</label><input id="dispItemId" type="number"></div>
+          <div><label>Data</label><input id="dispData" type="date"></div>
+        </div>
+        <div class="row">
+          <div><label>Disponível?</label>
+            <select id="dispFlag"><option value="true">Sim</option><option value="false">Não</option></select>
+          </div>
+          <div><label>Quantidade Máx.</label><input id="dispQtd" type="number"></div>
+        </div>
+        <div class="actions">
+          <button class="primary" onclick="definirDisponibilidade()">Salvar</button>
+        </div>
+        <div id="dispMsg" class="hint"></div>
+      </div>
+
+      <div class="card">
+        <h2>Orçamento rápido</h2>
+        <div class="row">
+          <div><label>Itens JSON</label>
+            <textarea id="orcItens" placeholder='[{"itemId":1,"quantidade":1}]'></textarea>
+          </div>
+          <div>
+            <label>Tamanho</label>
+            <input id="orcTamanho" placeholder="P | M | G" />
+          </div>
+        </div>
+        <div class="actions">
+          <button class="primary" onclick="fazerOrcamento()">Calcular</button>
+        </div>
+        <pre id="orcOut" class="mono"></pre>
+      </div>
+    </section>
+
+    <!-- CLIENTES -->
+    <section id="tab-clientes" class="grid" style="display:none">
+      <div class="card">
+        <h2>Novo cliente</h2>
+        <label>Nome</label><input id="clNome" />
+        <label>Email</label><input id="clEmail" />
+        <label>Telefone</label><input id="clTel" />
+        <div class="actions"><button class="primary" onclick="criarCliente()">Criar</button></div>
+        <div class="hint">Depois adicione endereços no bloco ao lado.</div>
+      </div>
+      <div class="card">
+        <h2>Clientes</h2>
+        <div class="actions">
+          <input id="clBusca" placeholder="buscar por nome..." />
+          <button onclick="listarClientes()">Buscar</button>
+        </div>
+        <table class="table" id="tblClientes">
+          <thead><tr><th>ID</th><th>Nome</th><th>Email</th><th>Telefone</th><th>Status</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h2>Endereços do cliente</h2>
+        <div class="row">
+          <div><label>ID do cliente</label><input id="endClienteId" type="number"/></div>
+          <div class="actions"><button onclick="listarEnderecos()">Listar</button></div>
+        </div>
+        <div class="row">
+          <div><label>Apelido</label><input id="endApelido"/></div>
+          <div><label>Logradouro</label><input id="endLogr"/></div>
+          <div><label>Número</label><input id="endNum"/></div>
+        </div>
+        <div class="row">
+          <div><label>Bairro</label><input id="endBairro"/></div>
+          <div><label>Cidade</label><input id="endCid"/></div>
+          <div><label>UF</label><input id="endUf"/></div>
+        </div>
+        <div class="row">
+          <div><label>CEP</label><input id="endCep"/></div>
+          <div><label>Como padrão?</label><select id="endPadrao"><option value="true">Sim</option><option value="false">Não</option></select></div>
+        </div>
+        <div class="actions">
+          <button class="primary" onclick="addEndereco()">Adicionar endereço</button>
+        </div>
+        <table class="table" id="tblEnderecos">
+          <thead><tr><th>ID</th><th>Apelido</th><th>Logradouro</th><th>Padrão</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="tab-pedidos" class="grid" style="display:none">
+      <div class="card">
+        <h2>Novo pedido</h2>
+        <div class="row">
+          <div><label>Cliente ID</label><input id="pdClienteId" type="number"/></div>
+          <div><label>Tipo entrega</label>
+            <select id="pdEntrega"><option>RETIRADA</option><option>ENTREGA</option></select>
+          </div>
+          <div><label>Tamanho</label><input id="pdTamanho" placeholder="P | M | G"/></div>
+        </div>
+        <label>Itens JSON</label>
+        <textarea id="pdItens" placeholder='[{"itemId":1,"quantidade":1}]'></textarea>
+        <label>Endereço</label>
+        <div class="row">
+          <div><input id="pdLogr" placeholder="Logradouro"/></div>
+          <div><input id="pdNum" placeholder="Número"/></div>
+          <div><input id="pdBairro" placeholder="Bairro"/></div>
+        </div>
+        <div class="row">
+          <div><input id="pdCid" placeholder="Cidade"/></div>
+          <div><input id="pdUf" placeholder="UF"/></div>
+          <div><input id="pdCep" placeholder="CEP"/></div>
+        </div>
+        <label>Observação</label><input id="pdObs"/>
+        <div class="row">
+          <div><label>Levar maquininha?</label><select id="pdMaquina"><option value="false">Não</option><option value="true">Sim</option></select></div>
+          <div><label>Troco para</label><input id="pdTroco" type="number" step="0.01"/></div>
+        </div>
+        <div class="actions"><button class="primary" onclick="criarPedido()">Criar pedido</button></div>
+        <pre id="pdOut" class="mono"></pre>
+      </div>
+
+      <div class="card">
+        <h2>Consultar pedido</h2>
+        <div class="row">
+          <div><label>ID</label><input id="pdId" type="number"/></div>
+          <div class="actions"><button onclick="obterPedido()">Buscar</button></div>
+        </div>
+        <div class="actions">
+          <button onclick="mudarStatus('PAGO')">→ PAGO</button>
+          <button onclick="mudarStatus('PREPARO')">→ PREPARO</button>
+          <button onclick="mudarStatus('ENTREGUE')">→ ENTREGUE</button>
+          <button onclick="cancelarPedido()">Cancelar</button>
+        </div>
+        <pre id="pdView" class="mono"></pre>
+      </div>
+    </section>
+
+    <section id="tab-pagamentos" class="grid" style="display:none">
+      <div class="card">
+        <h2>Registrar/Atualizar pagamento</h2>
+        <div class="row">
+          <div><label>Pedido ID</label><input id="pgPedidoId" type="number"/></div>
+          <div><label>Método</label><select id="pgMetodo"><option>PIX</option><option>CARTAO</option><option>DINHEIRO</option></select></div>
+          <div><label>Valor (opcional)</label><input id="pgValor" type="number" step="0.01"/></div>
+        </div>
+        <label>PIX (copia e cola)</label><textarea id="pgCopiaCola" placeholder="payload"></textarea>
+        <label>Referência</label><input id="pgRef"/>
+        <div class="row">
+          <div><label>Cartão presencial?</label><select id="pgPresencial"><option value="false">Não</option><option value="true">Sim</option></select></div>
+          <div><label>PIX Txid</label><input id="pgTxid"/></div>
+        </div>
+        <div class="actions"><button class="primary" onclick="registrarPagamento()">Salvar</button></div>
+        <pre id="pgOut" class="mono"></pre>
+      </div>
+      <div class="card">
+        <h2>Confirmar / Recusar</h2>
+        <div class="row">
+          <div><label>Pagamento ID</label><input id="pgId" type="number"/></div>
+          <div class="actions">
+            <button onclick="confirmarPagamento()" class="primary">Confirmar</button>
+            <button onclick="recusarPagamento()" class="ghost">Recusar</button>
+          </div>
+        </div>
+        <pre id="pgView" class="mono"></pre>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const base = () => $("baseUrl").value.replace(/\/$/, "");
+    const refDate = () => $("refDate").value || null;
+
+    function switchTab(btn){
+      document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      const tab = btn.dataset.tab;
+      document.querySelectorAll('section[id^="tab-"]').forEach(s=>s.style.display='none');
+      $("tab-"+tab).style.display = 'grid';
+    }
+
+    async function healthCheck(){
+      try {
+        const r = await fetch(base()+"/actuator/health");
+        $("health").textContent = r.ok? 'OK' : 'Falhou (actuator não habilitado)';
+      } catch(e){ $("health").textContent = 'Sem resposta: '+e.message; }
+    }
+
+    // ========== Cardápio ==========
+    async function criarItem(){
+      const body = {
+        nome: $("itNome").value,
+        descricao: $("itDesc").value,
+        tipo: $("itTipo").value,
+        preco: parseFloat($("itPreco").value || '0'),
+        ativo: $("itAtivo").value === 'true',
+        ordemExibicao: parseInt($("itOrdem").value || '0'),
+        imagemUrl: $("itImg").value || null
+      };
+      const r = await fetch(base()+"/api/cardapio/itens", {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      alert(r.ok? 'Criado!' : 'Erro ao criar');
+      if(r.ok) listarCardapio();
+    }
+
+    async function listarCardapio(){
+      const url = new URL(base()+"/api/cardapio");
+      if(refDate()) url.searchParams.set('data', refDate());
+      const r = await fetch(url);
+      const data = r.ok? await r.json() : [];
+      const tbody = $("tblCardapio").querySelector('tbody');
+      tbody.innerHTML = '';
+      data.forEach(it=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${it.id}</td><td>${it.nome}</td><td><span class="badge">${it.tipo}</span></td><td>R$ ${Number(it.preco).toFixed(2)}</td><td>${it.disponivelNoDia!==false?'<span class="ok">sim</span>':'<span class="err">não</span>'}</td><td><button onclick="toggleAtivo(${it.id}, ${!it.ativo})">${it.ativo?'Desativar':'Ativar'}</button></td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function toggleAtivo(id, value){
+      const r = await fetch(base()+`/api/cardapio/itens/${id}/ativo?value=${value}`, {method:'PATCH'});
+      if(r.ok) listarCardapio(); else alert('Erro ao alterar ativo');
+    }
+
+    async function definirDisponibilidade(){
+      const id = parseInt($("dispItemId").value);
+      const body = { data: $("dispData").value, disponivel: $("dispFlag").value==='true', quantidadeMax: $("dispQtd").value? parseInt($("dispQtd").value): null };
+      const r = await fetch(base()+`/api/cardapio/itens/${id}/disponibilidade`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      $("dispMsg").textContent = r.ok? 'Salvo!' : 'Erro ao salvar';
+    }
+
+    async function fazerOrcamento(){
+      let itens = [];
+      try { itens = JSON.parse($("orcItens").value || '[]'); } catch(e){ alert('Itens inválidos'); return; }
+      const body = { tamanho: $("orcTamanho").value || null, data: refDate(), itens };
+      const r = await fetch(base()+"/api/cardapio/orcamento", {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      $("orcOut").textContent = r.ok? JSON.stringify(await r.json(), null, 2) : 'Erro ao calcular';
+    }
+
+    // ========== Clientes ==========
+    async function criarCliente(){
+      const body = { nome: $("clNome").value, email: $("clEmail").value, telefone: $("clTel").value };
+      const r = await fetch(base()+"/api/clientes", {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      alert(r.ok? 'Cliente criado' : 'Erro ao criar');
+      listarClientes();
+    }
+    async function listarClientes(){
+      const q = $("clBusca").value || '';
+      const url = new URL(base()+"/api/clientes");
+      url.searchParams.set('page','0'); url.searchParams.set('size','100'); if(q) url.searchParams.set('q', q);
+      const r = await fetch(url); if(!r.ok){ alert('Erro'); return; }
+      const page = await r.json();
+      const tbody = $("tblClientes").querySelector('tbody'); tbody.innerHTML='';
+      page.content.forEach(c=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${c.id}</td><td>${c.nome}</td><td>${c.email||'-'}</td><td>${c.telefone||'-'}</td><td>${c.status}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+    async function listarEnderecos(){
+      const id = parseInt($("endClienteId").value); if(!id) return;
+      const r = await fetch(base()+`/api/clientes/${id}/enderecos`); if(!r.ok){ alert('Erro'); return; }
+      const data = await r.json(); const tbody = $("tblEnderecos").querySelector('tbody'); tbody.innerHTML='';
+      data.forEach(e=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${e.id}</td><td>${e.apelido}</td><td>${e.logradouro}, ${e.numero||''}</td><td>${e.padrao?'<span class=ok>sim</span>':'<span class=muted>não</span>'}</td>`; tbody.appendChild(tr); });
+    }
+    async function addEndereco(){
+      const id = parseInt($("endClienteId").value); if(!id) return alert('Informe cliente');
+      const body = { apelido: $("endApelido").value, logradouro: $("endLogr").value, numero: $("endNum").value, bairro: $("endBairro").value, cidade: $("endCid").value, uf: $("endUf").value, cep: $("endCep").value, padrao: $("endPadrao").value==='true' };
+      const r = await fetch(base()+`/api/clientes/${id}/enderecos`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      alert(r.ok? 'Endereço adicionado' : 'Erro'); if(r.ok) listarEnderecos();
+    }
+
+    // ========== Pedidos ==========
+    async function criarPedido(){
+      let itens = []; try{ itens = JSON.parse($("pdItens").value || '[]'); }catch(e){ alert('Itens inválidos'); return; }
+      const body = {
+        clienteId: parseInt($("pdClienteId").value),
+        tamanho: $("pdTamanho").value || null,
+        data: refDate(),
+        tipoEntrega: $("pdEntrega").value,
+        enderecoLogradouro: $("pdLogr").value || null,
+        enderecoNumero: $("pdNum").value || null,
+        enderecoBairro: $("pdBairro").value || null,
+        enderecoCidade: $("pdCid").value || null,
+        enderecoUf: $("pdUf").value || null,
+        enderecoCep: $("pdCep").value || null,
+        observacaoCliente: $("pdObs").value || null,
+        levarMaquininha: $("pdMaquina").value==='true',
+        trocoPara: $("pdTroco").value? parseFloat($("pdTroco").value) : null,
+        itens
+      };
+      const r = await fetch(base()+"/api/pedidos", {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      $("pdOut").textContent = r.ok? JSON.stringify(await r.json(), null, 2) : 'Erro ao criar pedido';
+    }
+    async function obterPedido(){
+      const id = parseInt($("pdId").value); if(!id) return;
+      const r = await fetch(base()+`/api/pedidos/${id}`);
+      $("pdView").textContent = r.ok? JSON.stringify(await r.json(), null, 2) : 'Não encontrado';
+    }
+    async function mudarStatus(value){
+      const id = parseInt($("pdId").value); if(!id) return;
+      const r = await fetch(base()+`/api/pedidos/${id}/status?value=${value}`, {method:'PATCH'});
+      if(r.ok) obterPedido(); else alert('Transição inválida');
+    }
+    async function cancelarPedido(){
+      const id = parseInt($("pdId").value); if(!id) return;
+      const motivo = prompt('Motivo do cancelamento:'); if(!motivo) return;
+      const r = await fetch(base()+`/api/pedidos/${id}/status?value=CANCELADO&motivoCancelamento=${encodeURIComponent(motivo)}`, {method:'PATCH'});
+      if(r.ok) obterPedido(); else alert('Erro ao cancelar');
+    }
+
+    // ========== Pagamentos ==========
+    async function registrarPagamento(){
+      const body = {
+        pedidoId: parseInt($("pgPedidoId").value),
+        metodo: $("pgMetodo").value,
+        valor: $("pgValor").value? parseFloat($("pgValor").value): null,
+        referencia: $("pgRef").value || null,
+        observacao: null,
+        cartaoPresente: $("pgPresencial").value==='true',
+        pixTxid: $("pgTxid").value || null,
+        pixCopiaCola: $("pgCopiaCola").value || null
+      };
+      const r = await fetch(base()+"/api/pagamentos", {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      $("pgOut").textContent = r.ok? JSON.stringify(await r.json(), null, 2) : 'Erro ao registrar';
+    }
+    async function confirmarPagamento(){
+      const id = parseInt($("pgId").value); if(!id) return;
+      const r = await fetch(base()+`/api/pagamentos/${id}/confirmar`, {method:'POST'});
+      $("pgView").textContent = r.ok? 'Confirmado!' : 'Erro ao confirmar';
+    }
+    async function recusarPagamento(){
+      const id = parseInt($("pgId").value); if(!id) return;
+      const motivo = prompt('Motivo (opcional):') || '';
+      const r = await fetch(base()+`/api/pagamentos/${id}/recusar?motivo=${encodeURIComponent(motivo)}`, {method:'POST'});
+      $("pgView").textContent = r.ok? 'Recusado' : 'Erro ao recusar';
+    }
+  </script>
+</body>
+</html>
